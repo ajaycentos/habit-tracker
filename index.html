@@ -36,13 +36,15 @@
             aspect-ratio: 1 / 1; display: flex; flex-direction: column;
             align-items: center; justify-content: center;
             border-radius: 8px; background-color: #f8fafc;
-            font-size: 0.8rem; cursor: pointer; transition: background-color 0.2s;
+            font-size: 0.75rem; cursor: pointer; transition: background-color 0.2s;
+            padding: 2px;
         }
         .calendar-day:hover { background-color: #f1f5f9; }
         .calendar-day.other-month { color: #cbd5e1; pointer-events: none; }
         .calendar-day.today { font-weight: bold; border: 2px solid #6366f1; }
         .calendar-day.selected { background-color: #e0e7ff; border: 2px solid #4f46e5; }
-        .calendar-day .points { font-size: 1rem; font-weight: 700; }
+        .calendar-day .points { font-size: 0.9rem; font-weight: 700; }
+        .calendar-day .spend { font-size: 0.7rem; color: #ef4444; }
         .task-item.readonly { opacity: 0.75; }
         .task-item.readonly .custom-checkbox { cursor: default; }
         #auth-overlay, #loader-overlay {
@@ -83,6 +85,7 @@
         <nav class="flex bg-slate-200 rounded-lg mb-6">
             <button id="nav-habits" class="nav-button active">Habits</button>
             <button id="nav-water" class="nav-button">Water</button>
+            <button id="nav-spend" class="nav-button">Spend</button>
         </nav>
 
         <!-- Habits Page -->
@@ -122,9 +125,34 @@
             </section>
             <section class="mt-6">
                  <h2 class="text-lg font-semibold mb-3 px-2">Today's Log</h2>
-                 <ul id="water-log-list" class="space-y-2">
-                    <!-- Water log entries will appear here -->
-                 </ul>
+                 <ul id="water-log-list" class="space-y-2"></ul>
+            </section>
+        </div>
+
+        <!-- Spend Page -->
+        <div id="spend-page" style="display: none;">
+            <section class="bg-white p-6 rounded-2xl shadow-md mb-6">
+                <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Spent Today</p>
+                <p id="total-spend-display" class="text-3xl font-bold text-red-500">₹0</p>
+            </section>
+            <section id="add-spend-section">
+                <h2 class="text-lg font-semibold mb-3 px-2">Log Expense</h2>
+                <form id="add-spend-form" class="bg-white p-4 rounded-xl shadow-sm space-y-3">
+                    <div class="flex gap-3">
+                        <input type="number" id="spend-amount-input" placeholder="Amount (₹)" class="flex-grow bg-slate-100 border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                        <select id="spend-method-select" class="bg-slate-100 border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                            <option>Credit Card</option>
+                            <option>UPI - Bank</option>
+                            <option>Cash</option>
+                        </select>
+                    </div>
+                    <input type="text" id="spend-comment-input" placeholder="Comment (optional)" class="w-full bg-slate-100 border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                    <button type="submit" class="w-full bg-red-600 text-white font-semibold py-3 px-5 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition shadow">Log Expense</button>
+                </form>
+            </section>
+            <section class="mt-6">
+                 <h2 class="text-lg font-semibold mb-3 px-2">Today's Expenses</h2>
+                 <ul id="spend-log-list" class="space-y-2"></ul>
             </section>
         </div>
 
@@ -145,7 +173,7 @@
         </section>
         
         <footer class="text-center mt-8">
-            <button id="reset-button" class="text-slate-500 text-sm hover:text-indigo-600">Reset today's tasks</button>
+            <button id="reset-button" class="text-slate-500 text-sm hover:text-indigo-600">Reset today's data</button>
         </footer>
     </main>
 
@@ -190,14 +218,14 @@
         import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- FIREBASE CONFIG ---
-          const firebaseConfig = {
+        const firebaseConfig = {
 		  apiKey: "AIzaSyD8rRXlt8gwrKMIgLTwhvejWCiIPOqEMl0",
           authDomain: "my-habit-tracker-fab33.firebaseapp.com",
           projectId: "my-habit-tracker-fab33",
-          storageBucket: "my-habit-tracker-fab33.firebasestorage.app",
+          storageBucket: "my-habit-tracker-fab33.appspot.com",
           messagingSenderId: "76678091008",
           appId: "1:76678091008:web:beb64e97a88f1f04fa63e5"
-          };
+        };
 
         // --- INITIALIZE FIREBASE ---
         const app = initializeApp(firebaseConfig);
@@ -229,14 +257,23 @@
             const nextMonthBtn = document.getElementById('next-month');
             const navHabits = document.getElementById('nav-habits');
             const navWater = document.getElementById('nav-water');
+            const navSpend = document.getElementById('nav-spend');
             const habitsPage = document.getElementById('habits-page');
             const waterPage = document.getElementById('water-page');
+            const spendPage = document.getElementById('spend-page');
             const totalWaterDisplay = document.getElementById('total-water-display');
             const waterPointsDisplay = document.getElementById('water-points-display');
             const addWaterForm = document.getElementById('add-water-form');
             const waterAmountInput = document.getElementById('water-amount-input');
             const waterLogList = document.getElementById('water-log-list');
             const addWaterSection = document.getElementById('add-water-section');
+            const totalSpendDisplay = document.getElementById('total-spend-display');
+            const addSpendSection = document.getElementById('add-spend-section');
+            const addSpendForm = document.getElementById('add-spend-form');
+            const spendAmountInput = document.getElementById('spend-amount-input');
+            const spendMethodSelect = document.getElementById('spend-method-select');
+            const spendCommentInput = document.getElementById('spend-comment-input');
+            const spendLogList = document.getElementById('spend-log-list');
 
             // --- APP STATE ---
             let habitHistory = {};
@@ -260,11 +297,8 @@
                     const docSnap = await getDoc(whitelistRef);
                     if (docSnap.exists()) {
                         const allowedEmails = docSnap.data().allowedEmails || [];
-                        if (allowedEmails.includes(user.email)) {
-                            return true; // User is authorized
-                        }
+                        if (allowedEmails.includes(user.email)) return true;
                     }
-                    // If whitelist doesn't exist or user not in it
                     authError.textContent = "You are not authorized to use this app.";
                     signOut(auth);
                     return false;
@@ -298,7 +332,6 @@
                 }
             });
             
-            // ... (rest of the auth event listeners: google, email, logout)
             const actionCodeSettings = { url: window.location.href, handleCodeInApp: true };
             googleSigninButton.addEventListener('click', async () => {
                 const provider = new GoogleAuthProvider();
@@ -339,7 +372,8 @@
                     if (!habitHistory[todayStr]) {
                         habitHistory[todayStr] = {
                             tasks: JSON.parse(JSON.stringify(initialTasks)),
-                            waterLog: []
+                            waterLog: [],
+                            spendLog: []
                         };
                         saveDataToFirestore();
                     }
@@ -370,16 +404,9 @@
             }
 
             // --- CORE LOGIC ---
-            const calculateHabitPoints = (tasks) => {
-                if (!tasks) return 0;
-                return tasks.reduce((sum, task) => task.completed ? sum + task.points : sum - task.points, 0);
-            };
-
-            const calculateWaterPoints = (waterLog) => {
-                if (!waterLog) return 0;
-                const totalWater = waterLog.reduce((sum, entry) => sum + entry.amount, 0);
-                return Math.floor(totalWater / 250) * 5; // +5 points for every 250ml
-            };
+            const calculateHabitPoints = (tasks) => (!tasks ? 0 : tasks.reduce((sum, task) => task.completed ? sum + task.points : sum - task.points, 0));
+            const calculateWaterPoints = (waterLog) => (!waterLog ? 0 : Math.floor(waterLog.reduce((sum, entry) => sum + entry.amount, 0) / 250) * 5);
+            const calculateTotalSpend = (spendLog) => (!spendLog ? 0 : spendLog.reduce((sum, entry) => sum + entry.amount, 0));
 
             const toggleTask = (id) => {
                 if (selectedDateStr !== getTodayDateString()) return;
@@ -412,6 +439,16 @@
                 waterAmountInput.value = '';
             };
 
+            const logSpend = (amount, method, comment) => {
+                if (!amount || amount <= 0 || selectedDateStr !== getTodayDateString()) return;
+                const todayData = habitHistory[getTodayDateString()];
+                if (!todayData.spendLog) todayData.spendLog = [];
+                const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit'});
+                todayData.spendLog.push({ id: Date.now(), amount, method, comment, time });
+                saveDataToFirestore();
+                addSpendForm.reset();
+            };
+
             // --- RENDERING ---
             const renderTasks = (tasks, isReadOnly) => {
                 taskListElement.innerHTML = '';
@@ -434,21 +471,39 @@
                 });
             };
 
-            const renderWaterLog = (waterLog, isReadOnly) => {
+            const renderWaterLog = (waterLog) => {
                 waterLogList.innerHTML = '';
                 if (!waterLog || waterLog.length === 0) {
-                    waterLogList.innerHTML = `<p class="text-center text-slate-500 p-4">No water logged yet for this day.</p>`;
+                    waterLogList.innerHTML = `<p class="text-center text-slate-500 p-4">No water logged yet.</p>`;
                     return;
                 }
-                // Display in reverse chronological order
                 [...waterLog].reverse().forEach(entry => {
                     const li = document.createElement('li');
                     li.className = 'bg-white p-3 rounded-lg flex justify-between items-center';
                     li.innerHTML = `
                         <span class="font-semibold text-blue-700">${entry.amount} ml</span>
-                        <span class="text-sm text-slate-500">${entry.time}</span>
-                    `;
+                        <span class="text-sm text-slate-500">${entry.time}</span>`;
                     waterLogList.appendChild(li);
+                });
+            };
+
+            const renderSpendLog = (spendLog) => {
+                spendLogList.innerHTML = '';
+                if (!spendLog || spendLog.length === 0) {
+                    spendLogList.innerHTML = `<p class="text-center text-slate-500 p-4">No expenses logged yet.</p>`;
+                    return;
+                }
+                [...spendLog].reverse().forEach(entry => {
+                    const li = document.createElement('li');
+                    li.className = 'bg-white p-3 rounded-lg';
+                    li.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-lg text-red-600">₹${entry.amount}</span>
+                            <span class="text-xs bg-slate-200 text-slate-600 font-semibold px-2 py-1 rounded-full">${entry.method}</span>
+                        </div>
+                        <p class="text-slate-600 text-sm mt-1">${entry.comment || '&nbsp;'}</p>
+                        <p class="text-right text-xs text-slate-400 mt-1">${entry.time}</p>`;
+                    spendLogList.appendChild(li);
                 });
             };
             
@@ -472,27 +527,36 @@
                     dayCell.dataset.date = dateStr;
                     if (dateStr === getTodayDateString()) dayCell.classList.add('today');
                     if (dateStr === selectedDateStr) dayCell.classList.add('selected');
+                    
                     let pointsHtml = '';
+                    let spendHtml = '';
+
                     if (habitHistory[dateStr]) {
                         const dayData = habitHistory[dateStr];
                         const totalPoints = calculateHabitPoints(dayData.tasks) + calculateWaterPoints(dayData.waterLog);
+                        const totalSpend = calculateTotalSpend(dayData.spendLog);
                         const color = totalPoints > 0 ? 'positive' : (totalPoints < 0 ? 'negative' : 'zero');
                         pointsHtml = `<span class="points ${color}">${totalPoints}</span>`;
+                        if (totalSpend > 0) {
+                            spendHtml = `<span class="spend">₹${totalSpend}</span>`;
+                        }
                     }
-                    dayCell.innerHTML = `<span>${i}</span>${pointsHtml}`;
+                    dayCell.innerHTML = `<span>${i}</span>${pointsHtml}${spendHtml}`;
                     calendarBody.appendChild(dayCell);
                 }
             };
 
             const viewDate = (dateStr) => {
                 selectedDateStr = dateStr;
-                const dataForDay = habitHistory[dateStr] || { tasks: [], waterLog: [] };
+                const dataForDay = habitHistory[dateStr] || { tasks: [], waterLog: [], spendLog: [] };
                 const isToday = dateStr === getTodayDateString();
                 
-                // Calculate and display all points
+                // Calculate and display all points and totals
                 const habitPoints = calculateHabitPoints(dataForDay.tasks);
                 const waterPoints = calculateWaterPoints(dataForDay.waterLog);
                 const totalPoints = habitPoints + waterPoints;
+                const totalSpend = calculateTotalSpend(dataForDay.spendLog);
+                
                 pointsElement.textContent = totalPoints;
                 pointsElement.className = 'text-6xl font-bold mt-2 points-display';
                 if (totalPoints > 0) pointsElement.classList.add('positive');
@@ -502,36 +566,38 @@
                 const totalWater = (dataForDay.waterLog || []).reduce((sum, entry) => sum + entry.amount, 0);
                 totalWaterDisplay.textContent = `${totalWater} ml`;
                 waterPointsDisplay.textContent = waterPoints;
+                totalSpendDisplay.textContent = `₹${totalSpend}`;
 
                 // Update headers
                 pointsHeader.textContent = isToday ? "Today's Total Points" : `Total Points on ${formatDateForDisplay(dateStr)}`;
                 taskListHeader.textContent = isToday ? "Today's Goals" : `Goals for ${formatDateForDisplay(dateStr)}`;
 
-                // Render content for both pages
+                // Render content for all pages
                 renderTasks(dataForDay.tasks, !isToday);
-                renderWaterLog(dataForDay.waterLog, !isToday);
+                renderWaterLog(dataForDay.waterLog);
+                renderSpendLog(dataForDay.spendLog);
 
                 // Show/hide forms
                 addTaskSection.style.display = isToday ? 'block' : 'none';
                 addWaterSection.style.display = isToday ? 'block' : 'none';
+                addSpendSection.style.display = isToday ? 'block' : 'none';
                 resetButton.style.display = isToday ? 'block' : 'none';
                 
                 renderCalendar();
             };
 
             // --- EVENT LISTENERS ---
-            navHabits.addEventListener('click', () => {
-                habitsPage.style.display = 'block';
-                waterPage.style.display = 'none';
-                navHabits.classList.add('active');
-                navWater.classList.remove('active');
+            const allNavButtons = [navHabits, navWater, navSpend];
+            const allPages = [habitsPage, waterPage, spendPage];
+            allNavButtons.forEach((button, index) => {
+                button.addEventListener('click', () => {
+                    allNavButtons.forEach(btn => btn.classList.remove('active'));
+                    allPages.forEach(page => page.style.display = 'none');
+                    button.classList.add('active');
+                    allPages[index].style.display = 'block';
+                });
             });
-            navWater.addEventListener('click', () => {
-                habitsPage.style.display = 'none';
-                waterPage.style.display = 'block';
-                navHabits.classList.remove('active');
-                navWater.classList.add('active');
-            });
+
             taskListElement.addEventListener('click', (e) => {
                 const taskItem = e.target.closest('.task-item');
                 if (taskItem) toggleTask(parseInt(taskItem.dataset.id));
@@ -544,6 +610,14 @@
                 e.preventDefault();
                 logWater(parseInt(waterAmountInput.value));
             });
+            addSpendForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                logSpend(
+                    parseInt(spendAmountInput.value),
+                    spendMethodSelect.value,
+                    spendCommentInput.value
+                );
+            });
             calendarBody.addEventListener('click', (e) => {
                 const dayCell = e.target.closest('.calendar-day');
                 if (dayCell && dayCell.dataset.date) {
@@ -551,10 +625,11 @@
                 }
             });
             resetButton.addEventListener('click', () => {
-                if (confirm("Are you sure you want to reset your progress for today?")) {
+                if (confirm("Are you sure you want to reset all of today's data?")) {
                     const todayData = habitHistory[getTodayDateString()];
                     todayData.tasks.forEach(task => task.completed = false);
                     todayData.waterLog = [];
+                    todayData.spendLog = [];
                     saveDataToFirestore();
                 }
             });
