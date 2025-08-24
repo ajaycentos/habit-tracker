@@ -49,6 +49,13 @@
             background-color: rgba(241, 245, 249, 0.95);
             backdrop-filter: blur(8px);
         }
+        .nav-button {
+            flex: 1; padding: 0.75rem; font-weight: 600; color: #475569;
+            border-bottom: 3px solid transparent; transition: all 0.2s;
+        }
+        .nav-button.active {
+            color: #4f46e5; border-bottom-color: #4f46e5;
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 flex items-start justify-center min-h-screen pt-8 sm:pt-12">
@@ -57,7 +64,7 @@
     <main id="app-container" class="w-full max-w-md mx-auto p-4" style="display: none;">
         <!-- Header -->
         <header class="text-center mb-8 relative">
-            <h1 class="text-3xl font-bold text-slate-900">Daily Habits</h1>
+            <h1 class="text-3xl font-bold text-slate-900">Daily Tracker</h1>
             <p id="current-date" class="text-slate-500"></p>
             <div id="user-info" class="absolute top-0 right-0 text-right">
                  <button id="logout-button" class="text-sm text-indigo-600 hover:text-indigo-800 font-semibold">Logout</button>
@@ -67,24 +74,59 @@
         <!-- Points Display -->
         <section class="mb-8">
             <div class="bg-white p-6 rounded-2xl shadow-md text-center">
-                <p id="points-header" class="text-sm font-medium text-slate-500 uppercase tracking-wider">Today's Points</p>
+                <p id="points-header" class="text-sm font-medium text-slate-500 uppercase tracking-wider">Today's Total Points</p>
                 <p id="points-display" class="text-6xl font-bold mt-2 points-display zero">0</p>
             </div>
         </section>
 
-        <!-- Task List -->
-        <section>
-            <h2 id="task-list-header" class="text-lg font-semibold mb-3 px-2">Today's Goals</h2>
-            <ul id="task-list" class="space-y-3"></ul>
-        </section>
-        
-        <!-- Add Task Form -->
-        <section id="add-task-section" class="mt-8">
-             <form id="add-task-form" class="flex gap-3">
-                <input type="text" id="new-task-input" placeholder="Add a new habit..." class="flex-grow bg-white border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
-                <button type="submit" class="bg-indigo-600 text-white font-semibold py-3 px-5 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition shadow">Add</button>
-            </form>
-        </section>
+        <!-- Navigation -->
+        <nav class="flex bg-slate-200 rounded-lg mb-6">
+            <button id="nav-habits" class="nav-button active">Habits</button>
+            <button id="nav-water" class="nav-button">Water</button>
+        </nav>
+
+        <!-- Habits Page -->
+        <div id="habits-page">
+            <section>
+                <h2 id="task-list-header" class="text-lg font-semibold mb-3 px-2">Today's Goals</h2>
+                <ul id="task-list" class="space-y-3"></ul>
+            </section>
+            <section id="add-task-section" class="mt-8">
+                 <form id="add-task-form" class="flex gap-3">
+                    <input type="text" id="new-task-input" placeholder="Add a new habit..." class="flex-grow bg-white border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                    <button type="submit" class="bg-indigo-600 text-white font-semibold py-3 px-5 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition shadow">Add</button>
+                </form>
+            </section>
+        </div>
+
+        <!-- Water Page -->
+        <div id="water-page" style="display: none;">
+            <section class="bg-white p-6 rounded-2xl shadow-md mb-6">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Intake</p>
+                        <p id="total-water-display" class="text-3xl font-bold text-blue-600">0 ml</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider">Water Points</p>
+                        <p id="water-points-display" class="text-3xl font-bold text-green-500">0</p>
+                    </div>
+                </div>
+            </section>
+            <section id="add-water-section">
+                <h2 class="text-lg font-semibold mb-3 px-2">Log Water Intake</h2>
+                <form id="add-water-form" class="bg-white p-4 rounded-xl shadow-sm flex items-center gap-3">
+                    <input type="number" id="water-amount-input" placeholder="ml" class="w-24 bg-slate-100 border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                    <button type="submit" class="flex-grow bg-blue-600 text-white font-semibold py-3 px-5 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition shadow">Log</button>
+                </form>
+            </section>
+            <section class="mt-6">
+                 <h2 class="text-lg font-semibold mb-3 px-2">Today's Log</h2>
+                 <ul id="water-log-list" class="space-y-2">
+                    <!-- Water log entries will appear here -->
+                 </ul>
+            </section>
+        </div>
 
         <!-- Calendar History -->
         <section class="mt-12">
@@ -145,18 +187,17 @@
             signInWithEmailLink,
             signOut
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- FIREBASE CONFIG ---
-        // IMPORTANT: Replace with your actual Firebase configuration from your project settings
-          const firebaseConfig = {
-		  apiKey: "AIzaSyD8rRXlt8gwrKMIgLTwhvejWCiIPOqEMl0",
-          authDomain: "my-habit-tracker-fab33.firebaseapp.com",
-          projectId: "my-habit-tracker-fab33",
-          storageBucket: "my-habit-tracker-fab33.firebasestorage.app",
-          messagingSenderId: "76678091008",
-          appId: "1:76678091008:web:beb64e97a88f1f04fa63e5"
-          };
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
 
         // --- INITIALIZE FIREBASE ---
         const app = initializeApp(firebaseConfig);
@@ -186,6 +227,16 @@
             const calendarBody = document.getElementById('calendar-body');
             const prevMonthBtn = document.getElementById('prev-month');
             const nextMonthBtn = document.getElementById('next-month');
+            const navHabits = document.getElementById('nav-habits');
+            const navWater = document.getElementById('nav-water');
+            const habitsPage = document.getElementById('habits-page');
+            const waterPage = document.getElementById('water-page');
+            const totalWaterDisplay = document.getElementById('total-water-display');
+            const waterPointsDisplay = document.getElementById('water-points-display');
+            const addWaterForm = document.getElementById('add-water-form');
+            const waterAmountInput = document.getElementById('water-amount-input');
+            const waterLogList = document.getElementById('water-log-list');
+            const addWaterSection = document.getElementById('add-water-section');
 
             // --- APP STATE ---
             let habitHistory = {};
@@ -202,70 +253,41 @@
                 { id: 5, text: 'Recite Prayers', points: 5, completed: false }
             ];
 
-            // --- AUTHENTICATION ---
-            const actionCodeSettings = {
-                url: window.location.href,
-                handleCodeInApp: true,
+            // --- AUTHENTICATION & AUTHORIZATION ---
+            const checkAuthorization = async (user) => {
+                const whitelistRef = doc(db, "config", "whitelist");
+                try {
+                    const docSnap = await getDoc(whitelistRef);
+                    if (docSnap.exists()) {
+                        const allowedEmails = docSnap.data().allowedEmails || [];
+                        if (allowedEmails.includes(user.email)) {
+                            return true; // User is authorized
+                        }
+                    }
+                    // If whitelist doesn't exist or user not in it
+                    authError.textContent = "You are not authorized to use this app.";
+                    signOut(auth);
+                    return false;
+                } catch (error) {
+                    console.error("Error checking whitelist:", error);
+                    authError.textContent = "Could not verify authorization.";
+                    signOut(auth);
+                    return false;
+                }
             };
 
-            googleSigninButton.addEventListener('click', async () => {
-                const provider = new GoogleAuthProvider();
-                try {
-                    await signInWithPopup(auth, provider);
-                } catch (error) {
-                    console.error("Google Sign-In Error:", error);
-                    authError.textContent = "Could not sign in with Google.";
-                }
-            });
-
-            emailForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = emailInput.value;
-                loaderOverlay.style.display = 'flex';
-                authError.textContent = '';
-                try {
-                    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-                    window.localStorage.setItem('emailForSignIn', email);
-                    alert(`A sign-in link has been sent to ${email}.`);
-                } catch (error) {
-                    console.error("Email Sign-In Error:", error);
-                    authError.textContent = error.message;
-                } finally {
-                    loaderOverlay.style.display = 'none';
-                }
-            });
-
-            logoutButton.addEventListener('click', () => {
-                signOut(auth);
-            });
-
-            const handleEmailSignIn = async () => {
-                if (isSignInWithEmailLink(auth, window.location.href)) {
-                    let email = window.localStorage.getItem('emailForSignIn');
-                    if (!email) {
-                        email = window.prompt('Please provide your email for confirmation');
-                    }
-                    if (!email) return; // User cancelled prompt
-                    loaderOverlay.style.display = 'flex';
-                    try {
-                        await signInWithEmailLink(auth, email, window.location.href);
-                        window.localStorage.removeItem('emailForSignIn');
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                    } catch (error) {
-                        console.error("Email Link Sign-In Error:", error);
-                        authError.textContent = "Sign-in link is invalid or expired.";
-                    } finally {
-                        loaderOverlay.style.display = 'none';
-                    }
-                }
-            };
-            
-            onAuthStateChanged(auth, (user) => {
+            onAuthStateChanged(auth, async (user) => {
                 if (user) {
-                    currentUserId = user.uid;
-                    authOverlay.style.display = 'none';
-                    appContainer.style.display = 'block';
-                    loadDataFromFirestore();
+                    loaderOverlay.style.display = 'flex';
+                    const isAuthorized = await checkAuthorization(user);
+                    if (isAuthorized) {
+                        currentUserId = user.uid;
+                        authOverlay.style.display = 'none';
+                        appContainer.style.display = 'block';
+                        loadDataFromFirestore();
+                    } else {
+                         loaderOverlay.style.display = 'none';
+                    }
                 } else {
                     currentUserId = null;
                     if (unsubscribeFromFirestore) unsubscribeFromFirestore();
@@ -275,6 +297,30 @@
                     loaderOverlay.style.display = 'none';
                 }
             });
+            
+            // ... (rest of the auth event listeners: google, email, logout)
+            const actionCodeSettings = { url: window.location.href, handleCodeInApp: true };
+            googleSigninButton.addEventListener('click', async () => {
+                const provider = new GoogleAuthProvider();
+                try { await signInWithPopup(auth, provider); } catch (error) { console.error("Google Sign-In Error:", error); authError.textContent = "Could not sign in with Google."; }
+            });
+            emailForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = emailInput.value;
+                loaderOverlay.style.display = 'flex';
+                authError.textContent = '';
+                try { await sendSignInLinkToEmail(auth, email, actionCodeSettings); window.localStorage.setItem('emailForSignIn', email); alert(`A sign-in link has been sent to ${email}.`); } catch (error) { console.error("Email Sign-In Error:", error); authError.textContent = error.message; } finally { loaderOverlay.style.display = 'none'; }
+            });
+            logoutButton.addEventListener('click', () => { signOut(auth); });
+            const handleEmailSignIn = async () => {
+                if (isSignInWithEmailLink(auth, window.location.href)) {
+                    let email = window.localStorage.getItem('emailForSignIn');
+                    if (!email) { email = window.prompt('Please provide your email for confirmation'); }
+                    if (!email) return;
+                    loaderOverlay.style.display = 'flex';
+                    try { await signInWithEmailLink(auth, email, window.location.href); window.localStorage.removeItem('emailForSignIn'); window.history.replaceState({}, document.title, window.location.pathname); } catch (error) { console.error("Email Link Sign-In Error:", error); authError.textContent = "Sign-in link is invalid or expired."; } finally { loaderOverlay.style.display = 'none'; }
+                }
+            };
 
             // --- FIRESTORE DATA HANDLING ---
             const loadDataFromFirestore = () => {
@@ -293,7 +339,7 @@
                     if (!habitHistory[todayStr]) {
                         habitHistory[todayStr] = {
                             tasks: JSON.parse(JSON.stringify(initialTasks)),
-                            points: calculatePoints(initialTasks)
+                            waterLog: []
                         };
                         saveDataToFirestore();
                     }
@@ -324,9 +370,15 @@
             }
 
             // --- CORE LOGIC ---
-            const calculatePoints = (tasks) => {
+            const calculateHabitPoints = (tasks) => {
                 if (!tasks) return 0;
                 return tasks.reduce((sum, task) => task.completed ? sum + task.points : sum - task.points, 0);
+            };
+
+            const calculateWaterPoints = (waterLog) => {
+                if (!waterLog) return 0;
+                const totalWater = waterLog.reduce((sum, entry) => sum + entry.amount, 0);
+                return Math.floor(totalWater / 250) * 5; // +5 points for every 250ml
             };
 
             const toggleTask = (id) => {
@@ -335,7 +387,6 @@
                 const task = todayData.tasks.find(t => t.id === id);
                 if (task) {
                     task.completed = !task.completed;
-                    todayData.points = calculatePoints(todayData.tasks);
                     saveDataToFirestore();
                 }
             };
@@ -346,11 +397,19 @@
                 let points = 10;
                 if (text.toLowerCase().includes('wake up') || text.toLowerCase().includes('bed time')) points = 20;
                 else if (text.toLowerCase().includes('exercise')) points = 15;
-
                 todayData.tasks.push({ id: Date.now(), text, points, completed: false });
-                todayData.points = calculatePoints(todayData.tasks);
                 saveDataToFirestore();
                 newTaskInput.value = '';
+            };
+
+            const logWater = (amount) => {
+                if (!amount || amount <= 0 || selectedDateStr !== getTodayDateString()) return;
+                const todayData = habitHistory[getTodayDateString()];
+                if (!todayData.waterLog) todayData.waterLog = [];
+                const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit'});
+                todayData.waterLog.push({ id: Date.now(), amount, time });
+                saveDataToFirestore();
+                waterAmountInput.value = '';
             };
 
             // --- RENDERING ---
@@ -372,6 +431,24 @@
                         <label for="task-${task.id}" class="flex-grow font-medium ${!isReadOnly ? 'cursor-pointer' : ''}">${task.text}</label>
                         <span class="font-bold text-lg ${pointColor}">${pointText}</span>`;
                     taskListElement.appendChild(li);
+                });
+            };
+
+            const renderWaterLog = (waterLog, isReadOnly) => {
+                waterLogList.innerHTML = '';
+                if (!waterLog || waterLog.length === 0) {
+                    waterLogList.innerHTML = `<p class="text-center text-slate-500 p-4">No water logged yet for this day.</p>`;
+                    return;
+                }
+                // Display in reverse chronological order
+                [...waterLog].reverse().forEach(entry => {
+                    const li = document.createElement('li');
+                    li.className = 'bg-white p-3 rounded-lg flex justify-between items-center';
+                    li.innerHTML = `
+                        <span class="font-semibold text-blue-700">${entry.amount} ml</span>
+                        <span class="text-sm text-slate-500">${entry.time}</span>
+                    `;
+                    waterLogList.appendChild(li);
                 });
             };
             
@@ -397,9 +474,10 @@
                     if (dateStr === selectedDateStr) dayCell.classList.add('selected');
                     let pointsHtml = '';
                     if (habitHistory[dateStr]) {
-                        const points = habitHistory[dateStr].points;
-                        const color = points > 0 ? 'positive' : (points < 0 ? 'negative' : 'zero');
-                        pointsHtml = `<span class="points ${color}">${points}</span>`;
+                        const dayData = habitHistory[dateStr];
+                        const totalPoints = calculateHabitPoints(dayData.tasks) + calculateWaterPoints(dayData.waterLog);
+                        const color = totalPoints > 0 ? 'positive' : (totalPoints < 0 ? 'negative' : 'zero');
+                        pointsHtml = `<span class="points ${color}">${totalPoints}</span>`;
                     }
                     dayCell.innerHTML = `<span>${i}</span>${pointsHtml}`;
                     calendarBody.appendChild(dayCell);
@@ -408,54 +486,82 @@
 
             const viewDate = (dateStr) => {
                 selectedDateStr = dateStr;
-                const dataForDay = habitHistory[dateStr];
+                const dataForDay = habitHistory[dateStr] || { tasks: [], waterLog: [] };
                 const isToday = dateStr === getTodayDateString();
-                const totalPoints = dataForDay ? dataForDay.points : 0;
+                
+                // Calculate and display all points
+                const habitPoints = calculateHabitPoints(dataForDay.tasks);
+                const waterPoints = calculateWaterPoints(dataForDay.waterLog);
+                const totalPoints = habitPoints + waterPoints;
                 pointsElement.textContent = totalPoints;
                 pointsElement.className = 'text-6xl font-bold mt-2 points-display';
                 if (totalPoints > 0) pointsElement.classList.add('positive');
                 else if (totalPoints < 0) pointsElement.classList.add('negative');
                 else pointsElement.classList.add('zero');
-                pointsHeader.textContent = isToday ? "Today's Points" : `Points on ${formatDateForDisplay(dateStr)}`;
+                
+                const totalWater = (dataForDay.waterLog || []).reduce((sum, entry) => sum + entry.amount, 0);
+                totalWaterDisplay.textContent = `${totalWater} ml`;
+                waterPointsDisplay.textContent = waterPoints;
+
+                // Update headers
+                pointsHeader.textContent = isToday ? "Today's Total Points" : `Total Points on ${formatDateForDisplay(dateStr)}`;
                 taskListHeader.textContent = isToday ? "Today's Goals" : `Goals for ${formatDateForDisplay(dateStr)}`;
-                renderTasks(dataForDay ? dataForDay.tasks : [], !isToday);
+
+                // Render content for both pages
+                renderTasks(dataForDay.tasks, !isToday);
+                renderWaterLog(dataForDay.waterLog, !isToday);
+
+                // Show/hide forms
                 addTaskSection.style.display = isToday ? 'block' : 'none';
+                addWaterSection.style.display = isToday ? 'block' : 'none';
                 resetButton.style.display = isToday ? 'block' : 'none';
+                
                 renderCalendar();
             };
 
             // --- EVENT LISTENERS ---
+            navHabits.addEventListener('click', () => {
+                habitsPage.style.display = 'block';
+                waterPage.style.display = 'none';
+                navHabits.classList.add('active');
+                navWater.classList.remove('active');
+            });
+            navWater.addEventListener('click', () => {
+                habitsPage.style.display = 'none';
+                waterPage.style.display = 'block';
+                navHabits.classList.remove('active');
+                navWater.classList.add('active');
+            });
             taskListElement.addEventListener('click', (e) => {
                 const taskItem = e.target.closest('.task-item');
                 if (taskItem) toggleTask(parseInt(taskItem.dataset.id));
             });
-            
             addTaskForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 addTask(newTaskInput.value);
             });
-
+            addWaterForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                logWater(parseInt(waterAmountInput.value));
+            });
             calendarBody.addEventListener('click', (e) => {
                 const dayCell = e.target.closest('.calendar-day');
                 if (dayCell && dayCell.dataset.date) {
                     viewDate(dayCell.dataset.date);
                 }
             });
-            
             resetButton.addEventListener('click', () => {
                 if (confirm("Are you sure you want to reset your progress for today?")) {
                     const todayData = habitHistory[getTodayDateString()];
                     todayData.tasks.forEach(task => task.completed = false);
-                    todayData.points = calculatePoints(todayData.tasks);
+                    todayData.waterLog = [];
                     saveDataToFirestore();
                 }
             });
-
             prevMonthBtn.addEventListener('click', () => {
                 calendarDate.setMonth(calendarDate.getMonth() - 1);
                 renderCalendar();
             });
-
             nextMonthBtn.addEventListener('click', () => {
                 calendarDate.setMonth(calendarDate.getMonth() + 1);
                 renderCalendar();
