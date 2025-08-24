@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Habit Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .task-item input[type="checkbox"] { display: none; }
+        .task-item .custom-checkbox {
+            width: 28px; height: 28px; border: 2px solid #cbd5e1; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s ease-in-out; flex-shrink: 0;
+        }
+        .task-item .custom-checkbox .checkmark {
+            width: 14px; height: 14px; background-color: white; border-radius: 50%;
+            transform: scale(0); transition: transform 0.2s ease-in-out;
+        }
+        .task-item input[type="checkbox"]:checked + .custom-checkbox {
+            background-color: #22c55e; border-color: #22c55e;
+        }
+        .task-item input[type="checkbox"]:checked + .custom-checkbox .checkmark { transform: scale(1); }
+        .task-item.completed label { text-decoration: line-through; color: #94a3b8; }
+        .points-display.positive { color: #22c55e; }
+        .points-display.negative { color: #ef4444; }
+        .points-display.zero { color: #64748b; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .calendar-day {
+            aspect-ratio: 1 / 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            border-radius: 8px; background-color: #f8fafc;
+            font-size: 0.8rem; cursor: pointer; transition: background-color 0.2s;
+        }
+        .calendar-day:hover { background-color: #f1f5f9; }
+        .calendar-day.other-month { color: #cbd5e1; pointer-events: none; }
+        .calendar-day.today { font-weight: bold; border: 2px solid #6366f1; }
+        .calendar-day.selected { background-color: #e0e7ff; border: 2px solid #4f46e5; }
+        .calendar-day .points { font-size: 1rem; font-weight: 700; }
+        .task-item.readonly { opacity: 0.75; }
+        .task-item.readonly .custom-checkbox { cursor: default; }
+        #auth-overlay, #loader-overlay {
+            background-color: rgba(241, 245, 249, 0.95);
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 flex items-start justify-center min-h-screen pt-8 sm:pt-12">
+
+    <!-- Main App Container -->
+    <main id="app-container" class="w-full max-w-md mx-auto p-4" style="display: none;">
+        <!-- Header -->
+        <header class="text-center mb-8 relative">
+            <h1 class="text-3xl font-bold text-slate-900">Daily Habits</h1>
+            <p id="current-date" class="text-slate-500"></p>
+            <div id="user-info" class="absolute top-0 right-0 text-right">
+                 <button id="logout-button" class="text-sm text-indigo-600 hover:text-indigo-800 font-semibold">Logout</button>
+            </div>
+        </header>
+
+        <!-- Points Display -->
+        <section class="mb-8">
+            <div class="bg-white p-6 rounded-2xl shadow-md text-center">
+                <p id="points-header" class="text-sm font-medium text-slate-500 uppercase tracking-wider">Today's Points</p>
+                <p id="points-display" class="text-6xl font-bold mt-2 points-display zero">0</p>
+            </div>
+        </section>
+
+        <!-- Task List -->
+        <section>
+            <h2 id="task-list-header" class="text-lg font-semibold mb-3 px-2">Today's Goals</h2>
+            <ul id="task-list" class="space-y-3"></ul>
+        </section>
+        
+        <!-- Add Task Form -->
+        <section id="add-task-section" class="mt-8">
+             <form id="add-task-form" class="flex gap-3">
+                <input type="text" id="new-task-input" placeholder="Add a new habit..." class="flex-grow bg-white border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                <button type="submit" class="bg-indigo-600 text-white font-semibold py-3 px-5 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition shadow">Add</button>
+            </form>
+        </section>
+
+        <!-- Calendar History -->
+        <section class="mt-12">
+            <h2 class="text-lg font-semibold mb-3 px-2">History</h2>
+            <div class="bg-white p-4 rounded-2xl shadow-md">
+                <div class="flex justify-between items-center mb-4">
+                    <button id="prev-month" class="p-2 rounded-full hover:bg-slate-100">&lt;</button>
+                    <h3 id="month-year" class="font-bold text-lg"></h3>
+                    <button id="next-month" class="p-2 rounded-full hover:bg-slate-100">&gt;</button>
+                </div>
+                <div class="calendar-grid text-center text-xs font-semibold text-slate-500 mb-2">
+                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                </div>
+                <div id="calendar-body" class="calendar-grid"></div>
+            </div>
+        </section>
+        
+        <footer class="text-center mt-8">
+            <button id="reset-button" class="text-slate-500 text-sm hover:text-indigo-600">Reset today's tasks</button>
+        </footer>
+    </main>
+
+    <!-- Auth Overlay -->
+    <div id="auth-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="w-full max-w-sm bg-white p-8 rounded-2xl shadow-xl text-center">
+            <h2 class="text-2xl font-bold mb-2 text-slate-800">Welcome!</h2>
+            <p class="text-slate-500 mb-6">Sign in to track your habits.</p>
+            <div class="space-y-4">
+                 <button id="google-signin-button" class="w-full bg-white border border-slate-300 text-slate-700 font-semibold py-3 px-5 rounded-lg hover:bg-slate-50 transition flex items-center justify-center gap-3">
+                    <svg class="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path><path fill="#FF3D00" d="m6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.222 0-9.618-3.226-11.283-7.662l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.012 35.24 44 30.025 44 24c0-1.341-.138-2.65-.389-3.917z"></path></svg>
+                    Sign in with Google
+                </button>
+                <p class="text-xs text-slate-400">or</p>
+                <form id="email-form">
+                    <input type="email" id="email-input" placeholder="Enter your email" required class="w-full bg-slate-100 border border-slate-300 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition mb-3">
+                    <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-3 px-5 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition shadow">Continue with Email</button>
+                </form>
+            </div>
+             <p id="auth-error" class="text-red-500 text-sm mt-4 h-4"></p>
+        </div>
+    </div>
+
+    <!-- Loader Overlay -->
+    <div id="loader-overlay" class="fixed inset-0 z-50 flex items-center justify-center" style="display: none;">
+        <div class="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+    </div>
+
+    <script type="module">
+        // --- FIREBASE IMPORTS ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            GoogleAuthProvider, 
+            signInWithPopup, 
+            sendSignInLinkToEmail,
+            isSignInWithEmailLink,
+            signInWithEmailLink,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- FIREBASE CONFIG ---
+        // IMPORTANT: Replace with your actual Firebase configuration from your project settings
+          const firebaseConfig = {
+		  apiKey: "AIzaSyD8rRXlt8gwrKMIgLTwhvejWCiIPOqEMl0",
+          authDomain: "my-habit-tracker-fab33.firebaseapp.com",
+          projectId: "my-habit-tracker-fab33",
+          storageBucket: "my-habit-tracker-fab33.firebasestorage.app",
+          messagingSenderId: "76678091008",
+          appId: "1:76678091008:web:beb64e97a88f1f04fa63e5"
+          };
+
+        // --- INITIALIZE FIREBASE ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM ELEMENTS ---
+            const appContainer = document.getElementById('app-container');
+            const authOverlay = document.getElementById('auth-overlay');
+            const loaderOverlay = document.getElementById('loader-overlay');
+            const googleSigninButton = document.getElementById('google-signin-button');
+            const emailForm = document.getElementById('email-form');
+            const emailInput = document.getElementById('email-input');
+            const authError = document.getElementById('auth-error');
+            const logoutButton = document.getElementById('logout-button');
+            const dateElement = document.getElementById('current-date');
+            const pointsHeader = document.getElementById('points-header');
+            const pointsElement = document.getElementById('points-display');
+            const taskListHeader = document.getElementById('task-list-header');
+            const taskListElement = document.getElementById('task-list');
+            const addTaskSection = document.getElementById('add-task-section');
+            const addTaskForm = document.getElementById('add-task-form');
+            const newTaskInput = document.getElementById('new-task-input');
+            const resetButton = document.getElementById('reset-button');
+            const monthYearElement = document.getElementById('month-year');
+            const calendarBody = document.getElementById('calendar-body');
+            const prevMonthBtn = document.getElementById('prev-month');
+            const nextMonthBtn = document.getElementById('next-month');
+
+            // --- APP STATE ---
+            let habitHistory = {};
+            let calendarDate = new Date();
+            let selectedDateStr = getTodayDateString();
+            let currentUserId = null;
+            let unsubscribeFromFirestore = null;
+
+            const initialTasks = [
+                { id: 1, text: 'Wake up at 4:30 AM', points: 20, completed: false },
+                { id: 2, text: 'Go to bed before 10 PM', points: 15, completed: false },
+                { id: 3, text: 'Do exercise', points: 10, completed: false },
+                { id: 4, text: 'Do Pranayama', points: 10, completed: false },
+                { id: 5, text: 'Recite Prayers', points: 5, completed: false }
+            ];
+
+            // --- AUTHENTICATION ---
+            const actionCodeSettings = {
+                url: window.location.href,
+                handleCodeInApp: true,
+            };
+
+            googleSigninButton.addEventListener('click', async () => {
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (error) {
+                    console.error("Google Sign-In Error:", error);
+                    authError.textContent = "Could not sign in with Google.";
+                }
+            });
+
+            emailForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = emailInput.value;
+                loaderOverlay.style.display = 'flex';
+                authError.textContent = '';
+                try {
+                    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+                    window.localStorage.setItem('emailForSignIn', email);
+                    alert(`A sign-in link has been sent to ${email}.`);
+                } catch (error) {
+                    console.error("Email Sign-In Error:", error);
+                    authError.textContent = error.message;
+                } finally {
+                    loaderOverlay.style.display = 'none';
+                }
+            });
+
+            logoutButton.addEventListener('click', () => {
+                signOut(auth);
+            });
+
+            const handleEmailSignIn = async () => {
+                if (isSignInWithEmailLink(auth, window.location.href)) {
+                    let email = window.localStorage.getItem('emailForSignIn');
+                    if (!email) {
+                        email = window.prompt('Please provide your email for confirmation');
+                    }
+                    if (!email) return; // User cancelled prompt
+                    loaderOverlay.style.display = 'flex';
+                    try {
+                        await signInWithEmailLink(auth, email, window.location.href);
+                        window.localStorage.removeItem('emailForSignIn');
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    } catch (error) {
+                        console.error("Email Link Sign-In Error:", error);
+                        authError.textContent = "Sign-in link is invalid or expired.";
+                    } finally {
+                        loaderOverlay.style.display = 'none';
+                    }
+                }
+            };
+            
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUserId = user.uid;
+                    authOverlay.style.display = 'none';
+                    appContainer.style.display = 'block';
+                    loadDataFromFirestore();
+                } else {
+                    currentUserId = null;
+                    if (unsubscribeFromFirestore) unsubscribeFromFirestore();
+                    habitHistory = {};
+                    authOverlay.style.display = 'flex';
+                    appContainer.style.display = 'none';
+                    loaderOverlay.style.display = 'none';
+                }
+            });
+
+            // --- FIRESTORE DATA HANDLING ---
+            const loadDataFromFirestore = () => {
+                if (!currentUserId) return;
+                loaderOverlay.style.display = 'flex';
+                const docRef = doc(db, "users", currentUserId);
+
+                unsubscribeFromFirestore = onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        habitHistory = docSnap.data().habitHistory || {};
+                    } else {
+                        habitHistory = {};
+                    }
+                    
+                    const todayStr = getTodayDateString();
+                    if (!habitHistory[todayStr]) {
+                        habitHistory[todayStr] = {
+                            tasks: JSON.parse(JSON.stringify(initialTasks)),
+                            points: calculatePoints(initialTasks)
+                        };
+                        saveDataToFirestore();
+                    }
+                    
+                    viewDate(selectedDateStr);
+                    loaderOverlay.style.display = 'none';
+                }, (error) => {
+                    console.error("Firestore read error:", error);
+                    loaderOverlay.style.display = 'none';
+                });
+            };
+
+            const saveDataToFirestore = async () => {
+                if (!currentUserId) return;
+                try {
+                    const docRef = doc(db, "users", currentUserId);
+                    await setDoc(docRef, { habitHistory });
+                } catch (error) {
+                    console.error("Error saving data to Firestore: ", error);
+                }
+            };
+
+            // --- DATE HELPERS ---
+            function getTodayDateString() { return new Date().toISOString().split('T')[0]; }
+            function formatDateForDisplay(dateStr) {
+                const date = new Date(dateStr + 'T00:00:00');
+                return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+            }
+
+            // --- CORE LOGIC ---
+            const calculatePoints = (tasks) => {
+                if (!tasks) return 0;
+                return tasks.reduce((sum, task) => task.completed ? sum + task.points : sum - task.points, 0);
+            };
+
+            const toggleTask = (id) => {
+                if (selectedDateStr !== getTodayDateString()) return;
+                const todayData = habitHistory[getTodayDateString()];
+                const task = todayData.tasks.find(t => t.id === id);
+                if (task) {
+                    task.completed = !task.completed;
+                    todayData.points = calculatePoints(todayData.tasks);
+                    saveDataToFirestore();
+                }
+            };
+
+            const addTask = (text) => {
+                if (text.trim() === '' || selectedDateStr !== getTodayDateString()) return;
+                const todayData = habitHistory[getTodayDateString()];
+                let points = 10;
+                if (text.toLowerCase().includes('wake up') || text.toLowerCase().includes('bed time')) points = 20;
+                else if (text.toLowerCase().includes('exercise')) points = 15;
+
+                todayData.tasks.push({ id: Date.now(), text, points, completed: false });
+                todayData.points = calculatePoints(todayData.tasks);
+                saveDataToFirestore();
+                newTaskInput.value = '';
+            };
+
+            // --- RENDERING ---
+            const renderTasks = (tasks, isReadOnly) => {
+                taskListElement.innerHTML = '';
+                if (!tasks || tasks.length === 0) {
+                    taskListElement.innerHTML = `<p class="text-center text-slate-500 p-4">No tasks for this day.</p>`;
+                    return;
+                }
+                tasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.className = `task-item bg-white p-4 rounded-xl shadow-sm flex items-center gap-4 transition ${task.completed ? 'completed' : ''} ${isReadOnly ? 'readonly' : ''}`;
+                    li.dataset.id = task.id;
+                    const pointText = task.points > 0 ? `+${task.points}` : `${task.points}`;
+                    const pointColor = task.points > 0 ? 'text-green-500' : 'text-red-500';
+                    li.innerHTML = `
+                        <input type="checkbox" id="task-${task.id}" ${task.completed ? 'checked' : ''} ${isReadOnly ? 'disabled' : ''}>
+                        <div class="custom-checkbox"><div class="checkmark"></div></div>
+                        <label for="task-${task.id}" class="flex-grow font-medium ${!isReadOnly ? 'cursor-pointer' : ''}">${task.text}</label>
+                        <span class="font-bold text-lg ${pointColor}">${pointText}</span>`;
+                    taskListElement.appendChild(li);
+                });
+            };
+            
+            const renderCalendar = () => {
+                calendarBody.innerHTML = '';
+                const year = calendarDate.getFullYear();
+                const month = calendarDate.getMonth();
+                monthYearElement.textContent = calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                const firstDay = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                for (let i = 0; i < firstDay; i++) {
+                    calendarBody.insertAdjacentHTML('beforeend', `<div class="calendar-day other-month"></div>`);
+                }
+
+                for (let i = 1; i <= daysInMonth; i++) {
+                    const dayCell = document.createElement('div');
+                    const dayDate = new Date(year, month, i);
+                    const dateStr = dayDate.toISOString().split('T')[0];
+                    dayCell.className = 'calendar-day';
+                    dayCell.dataset.date = dateStr;
+                    if (dateStr === getTodayDateString()) dayCell.classList.add('today');
+                    if (dateStr === selectedDateStr) dayCell.classList.add('selected');
+                    let pointsHtml = '';
+                    if (habitHistory[dateStr]) {
+                        const points = habitHistory[dateStr].points;
+                        const color = points > 0 ? 'positive' : (points < 0 ? 'negative' : 'zero');
+                        pointsHtml = `<span class="points ${color}">${points}</span>`;
+                    }
+                    dayCell.innerHTML = `<span>${i}</span>${pointsHtml}`;
+                    calendarBody.appendChild(dayCell);
+                }
+            };
+
+            const viewDate = (dateStr) => {
+                selectedDateStr = dateStr;
+                const dataForDay = habitHistory[dateStr];
+                const isToday = dateStr === getTodayDateString();
+                const totalPoints = dataForDay ? dataForDay.points : 0;
+                pointsElement.textContent = totalPoints;
+                pointsElement.className = 'text-6xl font-bold mt-2 points-display';
+                if (totalPoints > 0) pointsElement.classList.add('positive');
+                else if (totalPoints < 0) pointsElement.classList.add('negative');
+                else pointsElement.classList.add('zero');
+                pointsHeader.textContent = isToday ? "Today's Points" : `Points on ${formatDateForDisplay(dateStr)}`;
+                taskListHeader.textContent = isToday ? "Today's Goals" : `Goals for ${formatDateForDisplay(dateStr)}`;
+                renderTasks(dataForDay ? dataForDay.tasks : [], !isToday);
+                addTaskSection.style.display = isToday ? 'block' : 'none';
+                resetButton.style.display = isToday ? 'block' : 'none';
+                renderCalendar();
+            };
+
+            // --- EVENT LISTENERS ---
+            taskListElement.addEventListener('click', (e) => {
+                const taskItem = e.target.closest('.task-item');
+                if (taskItem) toggleTask(parseInt(taskItem.dataset.id));
+            });
+            
+            addTaskForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                addTask(newTaskInput.value);
+            });
+
+            calendarBody.addEventListener('click', (e) => {
+                const dayCell = e.target.closest('.calendar-day');
+                if (dayCell && dayCell.dataset.date) {
+                    viewDate(dayCell.dataset.date);
+                }
+            });
+            
+            resetButton.addEventListener('click', () => {
+                if (confirm("Are you sure you want to reset your progress for today?")) {
+                    const todayData = habitHistory[getTodayDateString()];
+                    todayData.tasks.forEach(task => task.completed = false);
+                    todayData.points = calculatePoints(todayData.tasks);
+                    saveDataToFirestore();
+                }
+            });
+
+            prevMonthBtn.addEventListener('click', () => {
+                calendarDate.setMonth(calendarDate.getMonth() - 1);
+                renderCalendar();
+            });
+
+            nextMonthBtn.addEventListener('click', () => {
+                calendarDate.setMonth(calendarDate.getMonth() + 1);
+                renderCalendar();
+            });
+
+            // --- INITIALIZATION ---
+            const displayDate = () => {
+                const today = new Date();
+                dateElement.textContent = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            };
+            
+            displayDate();
+            handleEmailSignIn();
+        });
+    </script>
+</body>
+</html>
