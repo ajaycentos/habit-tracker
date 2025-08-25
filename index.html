@@ -282,11 +282,11 @@
             let unsubscribeFromFirestore = null;
 
             const initialTasks = [
-                { id: 1, text: 'Wake up at 4:30 AM', points: 20, completed: false },
-                { id: 2, text: 'Go to bed before 10 PM', points: 15, completed: false },
+                { id: 1, text: 'Wake up at 4:30 AM', points: 10, completed: false },
+                { id: 2, text: 'Go to bed before 10 PM', points: 10, completed: false },
                 { id: 3, text: 'Do exercise', points: 10, completed: false },
                 { id: 4, text: 'Do Pranayama', points: 10, completed: false },
-                { id: 5, text: 'Recite Prayers', points: 5, completed: false }
+                { id: 5, text: 'Recite Prayers', points: 10, completed: false }
             ];
 
             // --- AUTHENTICATION & AUTHORIZATION ---
@@ -403,7 +403,18 @@
             }
 
             // --- CORE LOGIC ---
-            const calculateHabitPoints = (tasks) => (!tasks ? 0 : tasks.reduce((sum, task) => task.completed ? sum + task.points : sum - task.points, 0));
+            const calculateHabitPoints = (tasks) => {
+                if (!tasks) return 0;
+                let score = 0;
+                tasks.forEach(task => {
+                    if (task.completed) {
+                        score += task.points;
+                    } else {
+                        score -= task.points;
+                    }
+                });
+                return score;
+            };
             const calculateWaterPoints = (waterLog) => (!waterLog ? 0 : Math.floor(waterLog.reduce((sum, entry) => sum + entry.amount, 0) / 250) * 5);
             const calculateTotalSpend = (spendLog) => (!spendLog ? 0 : spendLog.reduce((sum, entry) => sum + entry.amount, 0));
 
@@ -420,9 +431,7 @@
             const addTask = (text) => {
                 if (text.trim() === '' || selectedDateStr !== getTodayDateString()) return;
                 const todayData = habitHistory[getTodayDateString()];
-                let points = 10;
-                if (text.toLowerCase().includes('wake up') || text.toLowerCase().includes('bed time')) points = 20;
-                else if (text.toLowerCase().includes('exercise')) points = 15;
+                const points = 10; // Standard points for all new tasks
                 todayData.tasks.push({ id: Date.now(), text, points, completed: false });
                 saveDataToFirestore();
                 newTaskInput.value = '';
@@ -652,4 +661,4 @@
         });
     </script>
 </body>
-</ht
+</html>
